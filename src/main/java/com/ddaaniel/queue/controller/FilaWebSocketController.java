@@ -23,287 +23,233 @@ import java.util.concurrent.Executor;
 @Controller
 public class FilaWebSocketController {
 
-    @Autowired
-    private AgendamentoRepository agendamentoRepository;
+  @Autowired
+  private AgendamentoRepository agendamentoRepository;
 
-    @Autowired
-    private EspecialistaRepository especialistaRepository;
+  @Autowired
+  private EspecialistaRepository especialistaRepository;
 
-    private Executor asyncExecutor;
+  private Executor asyncExecutor;
 
-    @Autowired
-    private PacienteRepository pacienteRepository;
+  @Autowired
+  private PacienteRepository pacienteRepository;
 
-    private int prioridadeContador = 0; // Contador para alternância entre prioridades
+  private int prioridadeContador = 0; // Contador para alternância entre prioridades
 
-    @MessageMapping("/chamarPaciente") // Rota que os clientes usarão para enviar mensagens
-    @SendTo("/topic/pacienteChamado") // Tópico para onde as respostas serão enviadas
-    public CompletableFuture<Map<String, Object>> chamarPacientePorEspecialista(Long idEspecialista) {
-        return CompletableFuture.supplyAsync(() -> {
-            List<Agendamento> agendamentos = agendamentoRepository
-                    .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
-                            idEspecialista, StatusAgendamento.EM_ESPERA, true);
+  @MessageMapping("/chamarPaciente") // Rota que os clientes usarão para enviar mensagens
+  @SendTo("/topic/pacienteChamado") // Tópico para onde as respostas serão enviadas
+  public Map<String, Object> chamarPacientePorEspecialista(Long idEspecialista) {
+    List<Agendamento> agendamentos = agendamentoRepository
+        .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
+            idEspecialista, StatusAgendamento.EM_ESPERA, true);
 
-            if (agendamentos.isEmpty()) {
-                Map<String, Object> resposta = new HashMap<>();
-                resposta.put("mensagem", "Nenhum paciente em espera para o especialista com ID " + idEspecialista);
-                return resposta;
-            }
-
-            List<Agendamento> comPrioridade = agendamentos.stream()
-                    .filter(a -> a.getPaciente().getPrioridade() == Prioridade.PESSOA_COM_ALGUMA_PRIORIDADE)
-                    .sorted(Comparator.comparing(Agendamento::getDataHoraChegada))
-                    .toList();
-
-            List<Agendamento> semPrioridade = agendamentos.stream()
-                    .filter(a -> a.getPaciente().getPrioridade() == Prioridade.NENHUM)
-                    .sorted(Comparator.comparing(Agendamento::getDataHoraChegada))
-                    .toList();
-
-            Agendamento proximoAgendamento = null;
-
-            if (!comPrioridade.isEmpty() && (prioridadeContador < 2 || semPrioridade.isEmpty())) {
-                proximoAgendamento = comPrioridade.get(0);
-                prioridadeContador++;
-            } else if (!semPrioridade.isEmpty()) {
-                proximoAgendamento = semPrioridade.get(0);
-                prioridadeContador = 0;
-            }
-
-            if (proximoAgendamento != null) {
-                proximoAgendamento.setStatus(StatusAgendamento.EM_ATENDIMENTO);
-                agendamentoRepository.save(proximoAgendamento);
-
-                Paciente paciente = proximoAgendamento.getPaciente();
-                Map<String, Object> pacienteInfo = new HashMap<>();
-                pacienteInfo.put("id", paciente.getId_paciente());
-                pacienteInfo.put("nome", paciente.getNomeCompleto());
-                pacienteInfo.put("sexo", paciente.getSexo());
-                pacienteInfo.put("prioridade", paciente.getPrioridade().name());
-                pacienteInfo.put("horaChegada", paciente.getDataHoraChegada());
-                pacienteInfo.put("status", proximoAgendamento.getStatus());
-                return pacienteInfo;
-            } else {
-                Map<String, Object> resposta = new HashMap<>();
-                resposta.put("mensagem", "Nenhum paciente disponível para atendimento no momento.");
-                return resposta;
-            }
-        });
+    if (agendamentos.isEmpty()) {
+      Map<String, Object> resposta = new HashMap<>();
+      resposta.put("mensagem", "Nenhum paciente em espera para o especialista com ID " + idEspecialista);
+      return resposta;
     }
 
-    // Obter o primeiro paciente em espera e em atendimento
-    @MessageMapping("/primeiroPacienteEspecialista")
-    @SendTo("/topic/primeiroPacienteAtualizado")
-    public Map<String, Object> getPrimeiroPacientePorEspecialista(Long especialistaId) {
-        return getPrimeiroPacientePorEspecialistaId(especialistaId);
+    List<Agendamento> comPrioridade = agendamentos.stream()
+        .filter(a -> a.getPaciente().getPrioridade() == Prioridade.PESSOA_COM_ALGUMA_PRIORIDADE)
+        .sorted(Comparator.comparing(Agendamento::getDataHoraChegada))
+        .toList();
+
+    List<Agendamento> semPrioridade = agendamentos.stream()
+        .filter(a -> a.getPaciente().getPrioridade() == Prioridade.NENHUM)
+        .sorted(Comparator.comparing(Agendamento::getDataHoraChegada))
+        .toList();
+
+    Agendamento proximoAgendamento = null;
+
+    if (!comPrioridade.isEmpty() && (prioridadeContador < 2 || semPrioridade.isEmpty())) {
+      proximoAgendamento = comPrioridade.get(0);
+      prioridadeContador++;
+    } else if (!semPrioridade.isEmpty()) {
+      proximoAgendamento = semPrioridade.get(0);
+      prioridadeContador = 0;
     }
 
-    private Map<String, Object> getPrimeiroPacientePorEspecialistaId(Long especialistaId) {
-        Map<String, Object> pacienteInfo = new HashMap<>();
+    if (proximoAgendamento != null) {
+      proximoAgendamento.setStatus(StatusAgendamento.EM_ATENDIMENTO);
+      agendamentoRepository.save(proximoAgendamento);
 
-        List<Agendamento> agendamentosEmEspera = agendamentoRepository
-                .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
-                        especialistaId, StatusAgendamento.EM_ESPERA, true);
+      Paciente paciente = proximoAgendamento.getPaciente();
+      Map<String, Object> pacienteInfo = new HashMap<>();
+      pacienteInfo.put("id", paciente.getId_paciente());
+      pacienteInfo.put("nome", paciente.getNomeCompleto());
+      pacienteInfo.put("sexo", paciente.getSexo());
+      pacienteInfo.put("prioridade", paciente.getPrioridade().name());
+      pacienteInfo.put("horaChegada", paciente.getDataHoraChegada());
+      pacienteInfo.put("status", proximoAgendamento.getStatus());
+      return pacienteInfo;
+    } else {
+      Map<String, Object> resposta = new HashMap<>();
+      resposta.put("mensagem", "Nenhum paciente disponível para atendimento no momento.");
+      return resposta;
+    }
+  }
 
-        Optional<Agendamento> primeiroEmEspera = agendamentosEmEspera.stream()
-                .sorted(Comparator.comparingInt((Agendamento a) ->
-                                a.getPaciente().getPrioridade().getPrioridade())
-                        .thenComparing(Agendamento::getDataAgendamento))
-                .findFirst();
+  // Obter o primeiro paciente em espera e em atendimento
+  @MessageMapping("/primeiroPacienteEspecialista")
+  @SendTo("/topic/primeiroPacienteAtualizado")
+  public Map<String, Object> getPrimeiroPacientePorEspecialista(Long especialistaId) {
+    return getPrimeiroPacientePorEspecialistaId(especialistaId);
+  }
 
-        List<Agendamento> agendamentosEmAtendimento = agendamentoRepository
-                .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
-                        especialistaId, StatusAgendamento.EM_ATENDIMENTO, true);
+  private Map<String, Object> getPrimeiroPacientePorEspecialistaId(Long especialistaId) {
+    Map<String, Object> pacienteInfo = new HashMap<>();
 
-        Optional<Agendamento> primeiroEmAtendimento = agendamentosEmAtendimento.stream().findFirst();
+    List<Agendamento> agendamentosEmEspera = agendamentoRepository
+        .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
+            especialistaId, StatusAgendamento.EM_ESPERA, true);
 
-        pacienteInfo.put("PacienteEmEspera", primeiroEmEspera.map(agendamento -> {
-            Map<String, String> esperaInfo = new HashMap<>();
-            esperaInfo.put("Nome", agendamento.getPaciente().getNomeCompleto());
-            esperaInfo.put("Status", agendamento.getStatus().name());
-            return esperaInfo;
-        }).orElse(null));
+    Optional<Agendamento> primeiroEmEspera = agendamentosEmEspera.stream()
+        .sorted(Comparator.comparingInt((Agendamento a) -> a.getPaciente().getPrioridade().getPrioridade())
+            .thenComparing(Agendamento::getDataAgendamento))
+        .findFirst();
 
-        pacienteInfo.put("PacienteEmAtendimento", primeiroEmAtendimento.map(agendamento -> {
-            Map<String, String> atendimentoInfo = new HashMap<>();
-            atendimentoInfo.put("Nome", agendamento.getPaciente().getNomeCompleto());
-            atendimentoInfo.put("Status", agendamento.getStatus().name());
-            return atendimentoInfo;
-        }).orElse(null));
+    List<Agendamento> agendamentosEmAtendimento = agendamentoRepository
+        .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
+            especialistaId, StatusAgendamento.EM_ATENDIMENTO, true);
 
-        return pacienteInfo;
+    Optional<Agendamento> primeiroEmAtendimento = agendamentosEmAtendimento.stream().findFirst();
+
+    pacienteInfo.put("PacienteEmEspera", primeiroEmEspera.map(agendamento -> {
+      Map<String, String> esperaInfo = new HashMap<>();
+      esperaInfo.put("Nome", agendamento.getPaciente().getNomeCompleto());
+      esperaInfo.put("Status", agendamento.getStatus().name());
+      return esperaInfo;
+    }).orElse(null));
+
+    pacienteInfo.put("PacienteEmAtendimento", primeiroEmAtendimento.map(agendamento -> {
+      Map<String, String> atendimentoInfo = new HashMap<>();
+      atendimentoInfo.put("Nome", agendamento.getPaciente().getNomeCompleto());
+      atendimentoInfo.put("Status", agendamento.getStatus().name());
+      return atendimentoInfo;
+    }).orElse(null));
+
+    return pacienteInfo;
+  }
+
+  @MessageMapping("/primeirosPacientesPorEspecialistas")
+  @SendTo("/topic/primeirosPacientesPorEspecialistaAtualizados")
+  public List<Map<String, Object>> getPrimeirosPacientes() {
+    return getPrimeirosPacientesPorEspecialistas();
+  }
+
+  private List<Map<String, Object>> getPrimeirosPacientesPorEspecialistas() {
+    List<Map<String, Object>> especialistasPacientesInfo = new ArrayList<>();
+
+    // Busca todos os especialistas cadastrados no sistema
+    List<Especialista> especialistas = especialistaRepository.findAll();
+
+    for (Especialista especialista : especialistas) {
+      Map<String, Object> especialistaInfo = new HashMap<>();
+      Map<String, Object> pacienteInfo = new HashMap<>();
+
+      Long especialistaId = especialista.getId();
+
+      // Buscar agendamentos com status EM_ESPERA para o especialista
+      List<Agendamento> agendamentosEmEspera = agendamentoRepository
+          .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
+              especialistaId, StatusAgendamento.EM_ESPERA, true);
+
+      Optional<Agendamento> primeiroEmEspera = agendamentosEmEspera.stream()
+          .sorted(Comparator.comparingInt((Agendamento a) -> a.getPaciente().getPrioridade().getPrioridade())
+              .thenComparing(Agendamento::getDataAgendamento))
+          .findFirst();
+
+      // Buscar agendamentos com status EM_ATENDIMENTO para o especialista
+      List<Agendamento> agendamentosEmAtendimento = agendamentoRepository
+          .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
+              especialistaId, StatusAgendamento.EM_ATENDIMENTO, true);
+
+      Optional<Agendamento> primeiroEmAtendimento = agendamentosEmAtendimento.stream().findFirst();
+
+      // Montar informações do paciente em espera
+      pacienteInfo.put("PacienteEmEspera", primeiroEmEspera.map(agendamento -> {
+        Map<String, String> esperaInfo = new HashMap<>();
+        esperaInfo.put("Nome", agendamento.getPaciente().getNomeCompleto());
+        esperaInfo.put("Status", agendamento.getStatus().name());
+        return esperaInfo;
+      }).orElse(null));
+
+      // Montar informações do paciente em atendimento
+      pacienteInfo.put("PacienteEmAtendimento", primeiroEmAtendimento.map(agendamento -> {
+        Map<String, String> atendimentoInfo = new HashMap<>();
+        atendimentoInfo.put("Nome", agendamento.getPaciente().getNomeCompleto());
+        atendimentoInfo.put("Status", agendamento.getStatus().name());
+        return atendimentoInfo;
+      }).orElse(null));
+
+      // Adicionar as informações do especialista ao mapa
+      especialistaInfo.put("EspecialistaId", especialistaId);
+      especialistaInfo.put("Nome", especialista.getNome());
+      especialistaInfo.put("TipoEspecialista", especialista.getTipoEspecialista().name());
+      especialistaInfo.put("Pacientes", pacienteInfo);
+
+      especialistasPacientesInfo.add(especialistaInfo);
     }
 
+    return especialistasPacientesInfo;
+  }
 
-    @MessageMapping("/primeirosPacientesPorEspecialistas")
-    @SendTo("/topic/primeirosPacientesPorEspecialistaAtualizados")
-    public CompletableFuture<List<Map<String, Object>>> getPrimeirosPacientes() {
-        return CompletableFuture.supplyAsync( () -> {
-            return getPrimeirosPacientesPorEspecialistas();
-        }, asyncExecutor);
+  // Contar pacientes em espera
+  @MessageMapping("/contagemEspecialista")
+  @SendTo("/topic/contagemAtualizada")
+  public Map<String, Integer> getContagemPacientesPorEspecialista(Long especialistaId) {
+    return contarPacientesPorEspecialistaId(especialistaId);
+  }
+
+  private Map<String, Integer> contarPacientesPorEspecialistaId(Long especialistaId) {
+    int contagem = agendamentoRepository.countByEspecialista_IdAndStatus(
+        especialistaId, StatusAgendamento.EM_ESPERA);
+
+    return Map.of("QuantidadePacientesEmEspera", contagem);
+  }
+
+  @MessageMapping("/marcarPresenca")
+  @SendTo("/topic/presencaConfirmada")
+  public Map<String, String> marcarPresenca(Map<String, Object> payload) {
+    String codigoCodigo = (String) payload.get("codigoCodigo");
+    Long idAgendamento = Long.valueOf(payload.get("idAgendamento").toString());
+
+    // Iniciar a lógica de forma atômica
+    return marcarPresencaComTransacao(codigoCodigo, idAgendamento);
+  }
+
+  @Transactional
+  public Map<String, String> marcarPresencaComTransacao(String codigoCodigo, Long idAgendamento) {
+    var pacienteOpt = pacienteRepository.findByCodigoCodigo(codigoCodigo);
+
+    if (pacienteOpt.isPresent()) {
+      Paciente objPaciente = pacienteOpt.get();
+
+      // Verificar se o paciente já está na fila de espera
+      boolean jaEmEspera = agendamentoRepository.existsByPacienteAndStatus(objPaciente, StatusAgendamento.EM_ESPERA);
+      if (jaEmEspera) {
+        return Map.of("status", "CONFLICT", "message", "Paciente já na fila.");
+      }
+
+      // Buscar agendamento associado
+      Optional<Agendamento> agendamentoOpt = agendamentoRepository.findById(idAgendamento);
+      if (agendamentoOpt.isPresent()) {
+        Agendamento objAgendamento = agendamentoOpt.get();
+        objAgendamento.setStatus(StatusAgendamento.EM_ESPERA);
+        objAgendamento.setDataHoraChegada(LocalDateTime.now());
+        agendamentoRepository.save(objAgendamento);
+
+        // Confirmar presença do paciente
+        objPaciente.setPresencaConfirmado(true);
+        pacienteRepository.save(objPaciente);
+
+        return Map.of("status", "OK", "message", "Presença confirmada.");
+      } else {
+        return Map.of("status", "NOT_FOUND", "message", "Agendamento não encontrado.");
+      }
+    } else {
+      return Map.of("status", "NOT_FOUND", "message", "Paciente não encontrado.");
     }
+  }
 
-    private List<Map<String, Object>> getPrimeirosPacientesPorEspecialistas() {
-        List<Map<String, Object>> especialistasPacientesInfo = new ArrayList<>();
-
-        // Busca todos os especialistas cadastrados no sistema
-        List<Especialista> especialistas = especialistaRepository.findAll();
-
-        for (Especialista especialista : especialistas) {
-            Map<String, Object> especialistaInfo = new HashMap<>();
-            Map<String, Object> pacienteInfo = new HashMap<>();
-
-            Long especialistaId = especialista.getId();
-
-            // Buscar agendamentos com status EM_ESPERA para o especialista
-            List<Agendamento> agendamentosEmEspera = agendamentoRepository
-                    .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
-                            especialistaId, StatusAgendamento.EM_ESPERA, true);
-
-            Optional<Agendamento> primeiroEmEspera = agendamentosEmEspera.stream()
-                    .sorted(Comparator.comparingInt((Agendamento a) ->
-                                    a.getPaciente().getPrioridade().getPrioridade())
-                            .thenComparing(Agendamento::getDataAgendamento))
-                    .findFirst();
-
-            // Buscar agendamentos com status EM_ATENDIMENTO para o especialista
-            List<Agendamento> agendamentosEmAtendimento = agendamentoRepository
-                    .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
-                            especialistaId, StatusAgendamento.EM_ATENDIMENTO, true);
-
-            Optional<Agendamento> primeiroEmAtendimento = agendamentosEmAtendimento.stream().findFirst();
-
-            // Montar informações do paciente em espera
-            pacienteInfo.put("PacienteEmEspera", primeiroEmEspera.map(agendamento -> {
-                Map<String, String> esperaInfo = new HashMap<>();
-                esperaInfo.put("Nome", agendamento.getPaciente().getNomeCompleto());
-                esperaInfo.put("Status", agendamento.getStatus().name());
-                return esperaInfo;
-            }).orElse(null));
-
-            // Montar informações do paciente em atendimento
-            pacienteInfo.put("PacienteEmAtendimento", primeiroEmAtendimento.map(agendamento -> {
-                Map<String, String> atendimentoInfo = new HashMap<>();
-                atendimentoInfo.put("Nome", agendamento.getPaciente().getNomeCompleto());
-                atendimentoInfo.put("Status", agendamento.getStatus().name());
-                return atendimentoInfo;
-            }).orElse(null));
-
-            // Adicionar as informações do especialista ao mapa
-            especialistaInfo.put("EspecialistaId", especialistaId);
-            especialistaInfo.put("Nome", especialista.getNome());
-            especialistaInfo.put("TipoEspecialista", especialista.getTipoEspecialista().name());
-            especialistaInfo.put("Pacientes", pacienteInfo);
-
-            especialistasPacientesInfo.add(especialistaInfo);
-        }
-
-        return especialistasPacientesInfo;
-    }
-
-
-
-    // Contar pacientes em espera
-    @MessageMapping("/contagemEspecialista")
-    @SendTo("/topic/contagemAtualizada")
-    public CompletableFuture<Map<String, Integer>> getContagemPacientesPorEspecialista(Long especialistaId) {
-        return CompletableFuture.supplyAsync( () -> {
-            return contarPacientesPorEspecialistaId(especialistaId);
-        }, asyncExecutor);
-    }
-
-    private Map<String, Integer> contarPacientesPorEspecialistaId(Long especialistaId) {
-        int contagem = agendamentoRepository.countByEspecialista_IdAndStatus(
-                especialistaId, StatusAgendamento.EM_ESPERA);
-
-        return Map.of("QuantidadePacientesEmEspera", contagem);
-    }
-
-
-    @MessageMapping("/marcarPresenca")
-    @SendTo("/topic/presencaConfirmada")
-    public CompletableFuture<Map<String, String>> marcarPresenca(Map<String, Object> payload) {
-        String codigoCodigo = (String) payload.get("codigoCodigo");
-        Long idAgendamento = Long.valueOf(payload.get("idAgendamento").toString());
-
-        return CompletableFuture.supplyAsync(() -> {
-            // Iniciar a lógica de forma atômica
-            return marcarPresencaComTransacao(codigoCodigo, idAgendamento);
-        }, asyncExecutor);
-    }
-
-    @Transactional
-    public Map<String, String> marcarPresencaComTransacao(String codigoCodigo, Long idAgendamento) {
-        var pacienteOpt = pacienteRepository.findByCodigoCodigo(codigoCodigo);
-
-        if (pacienteOpt.isPresent()) {
-            Paciente objPaciente = pacienteOpt.get();
-
-            // Verificar se o paciente já está na fila de espera
-            boolean jaEmEspera = agendamentoRepository.existsByPacienteAndStatus(objPaciente, StatusAgendamento.EM_ESPERA);
-            if (jaEmEspera) {
-                return Map.of("status", "CONFLICT", "message", "Paciente já na fila.");
-            }
-
-            // Buscar agendamento associado
-            Optional<Agendamento> agendamentoOpt = agendamentoRepository.findById(idAgendamento);
-            if (agendamentoOpt.isPresent()) {
-                Agendamento objAgendamento = agendamentoOpt.get();
-                objAgendamento.setStatus(StatusAgendamento.EM_ESPERA);
-                objAgendamento.setDataHoraChegada(LocalDateTime.now());
-                agendamentoRepository.save(objAgendamento);
-
-                // Confirmar presença do paciente
-                objPaciente.setPresencaConfirmado(true);
-                pacienteRepository.save(objPaciente);
-
-                return Map.of("status", "OK", "message", "Presença confirmada.");
-            } else {
-                return Map.of("status", "NOT_FOUND", "message", "Agendamento não encontrado.");
-            }
-        } else {
-            return Map.of("status", "NOT_FOUND", "message", "Paciente não encontrado.");
-        }
-    }
-
-    /*
-    // Confirmar presença de um paciente
-    @MessageMapping("/marcarPresenca")
-    @SendTo("/topic/presencaConfirmada")
-    public Map<String, String> marcarPresenca(Map<String, Object> payload) {
-        String codigoCodigo = (String) payload.get("codigoCodigo");
-        Long idAgendamento = Long.valueOf(payload.get("idAgendamento").toString());
-
-        return CompletableFuture.supplyAsync(() -> {
-            var pacienteOpt = pacienteRepository.findByCodigoCodigo(codigoCodigo);
-
-            if (pacienteOpt.isPresent()) {
-                Paciente objPaciente = pacienteOpt.get();
-
-                boolean jaEmEspera = agendamentoRepository.existsByPacienteAndStatus(objPaciente, StatusAgendamento.EM_ESPERA);
-                if (jaEmEspera) {
-                    return Map.of("status", "CONFLICT", "message", "Paciente já na fila.");
-                }
-
-                Optional<Agendamento> agendamentoOpt = agendamentoRepository.findById(idAgendamento);
-                if (agendamentoOpt.isPresent()) {
-                    Agendamento objAgendamento = agendamentoOpt.get();
-                    objAgendamento.setStatus(StatusAgendamento.EM_ESPERA);
-                    objAgendamento.setDataHoraChegada(LocalDateTime.now());
-                    agendamentoRepository.save(objAgendamento);
-
-                    objPaciente.setPresencaConfirmado(true);
-                    pacienteRepository.save(objPaciente);
-
-                    return Map.of("status", "OK", "message", "Presença confirmada.");
-                } else {
-                    return Map.of("status", "NOT_FOUND", "message", "Agendamento não encontrado.");
-                }
-            } else {
-                return Map.of("status", "NOT_FOUND", "message", "Paciente não encontrado.");
-            }
-        }).join();
-    }
-
-     */
 }

@@ -1,6 +1,5 @@
 package com.ddaaniel.queue.domain.repository;
 
-
 import com.ddaaniel.queue.domain.model.Agendamento;
 import com.ddaaniel.queue.domain.model.Paciente;
 import com.ddaaniel.queue.domain.model.enuns.StatusAgendamento;
@@ -14,16 +13,18 @@ import java.util.Optional;
 @Repository
 public interface AgendamentoRepository extends JpaRepository<Agendamento, Long> {
 
-    int countByEspecialista_TipoEspecialistaAndStatus(TipoEspecialista tipoEspecialista, StatusAgendamento status);
+  int countByEspecialista_TipoEspecialistaAndStatus(TipoEspecialista tipoEspecialista, StatusAgendamento status);
 
+  List<Agendamento> findAllByEspecialista_TipoEspecialistaAndStatusAndPaciente_PresencaConfirmado(
+      TipoEspecialista tipoEspecialista, StatusAgendamento statusAgendamento, boolean b);
 
-    List<Agendamento> findAllByEspecialista_TipoEspecialistaAndStatusAndPaciente_PresencaConfirmado(TipoEspecialista tipoEspecialista, StatusAgendamento statusAgendamento, boolean b);
+  Optional<Agendamento> findByPacienteAndStatus(Paciente paciente, StatusAgendamento statusAgendamento);
 
-    Optional<Agendamento> findByPacienteAndStatus(Paciente paciente, StatusAgendamento statusAgendamento);
+  boolean existsByPacienteAndStatus(Paciente objPaciente, StatusAgendamento statusAgendamento);
 
-    boolean existsByPacienteAndStatus(Paciente objPaciente, StatusAgendamento statusAgendamento);
+  List<Agendamento> findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(Long idEspecialista,
+      StatusAgendamento statusAgendamento, boolean b);
 
-    List<Agendamento> findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(Long idEspecialista, StatusAgendamento statusAgendamento, boolean b);
+  int countByEspecialista_IdAndStatus(Long especialistaId, StatusAgendamento statusAgendamento);
 
-    int countByEspecialista_IdAndStatus(Long especialistaId, StatusAgendamento statusAgendamento);
 }

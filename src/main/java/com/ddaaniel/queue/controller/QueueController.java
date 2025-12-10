@@ -18,6 +18,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+
+import org.eclipse.angus.mail.handlers.text_plain;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -36,7 +38,6 @@ import java.util.stream.Collectors;
 @Tag(name = "Fila", description = "Queue endpoints")
 public class QueueController {
 
-
   @Autowired
   private EspecialistaRepository especialistaRepository;
 
@@ -51,7 +52,6 @@ public class QueueController {
 
   @Autowired
   private ContaRepository contaRepository;
-
 
   @Autowired
   private AgendamentoRepository agendamentoRepository;
@@ -162,39 +162,39 @@ public class QueueController {
   }
 
   @PutMapping("/marcarPresenca")
-  @Operation(
-    summary = "Confirming the presence of the patient for a certain appointment.",
+  @Operation(summary = "Confirming the presence of the patient for a certain appointment.",
 
-    description = """
-        Marca a presença do paciente na clínica, alterando o status do agendamento
-        de AGUARDANDO_CONFIRMACAO para EM_ESPERA.
+      description = """
+          Marca a presença do paciente na clínica, alterando o status do agendamento
+          de AGUARDANDO_CONFIRMACAO para EM_ESPERA.
 
-        ## Fluxo:
-        1. Paciente informa código de acesso
-        2. Sistema valida se paciente existe
-        3. Verifica se já está em espera (evita duplicidade)
-        4. Valida estado do agendamento
-        5. Atualiza status e horário de chegada
+          ## Fluxo:
+          1. Paciente informa código de acesso
+          2. Sistema valida se paciente existe
+          3. Verifica se já está em espera (evita duplicidade)
+          4. Valida estado do agendamento
+          5. Atualiza status e horário de chegada
 
-        ## Restrições:
-        - Só funciona se status atual for AGUARDANDO_CONFIRMACAO
-        - Bloqueia se paciente já tiver outro agendamento EM_ESPERA
-        """,
+          ## Restrições:
+          - Só funciona se status atual for AGUARDANDO_CONFIRMACAO
+          - Bloqueia se paciente já tiver outro agendamento EM_ESPERA
+          """,
 
-    tags = {"Fila", "Paciente"},
+      tags = { "Fila", "Paciente" }, operationId = "confirmarPresenca",
 
-    operationId = "confirmarPresenca",
+      parameters = {
+          @Parameter(in = ParameterIn.QUERY, name = "codigoCodigo", description = "Patient recognition code."),
+          @Parameter(in = ParameterIn.QUERY, name = "id_agendamento", description = "Patient-related scheduling ID")
+      },
 
-    parameters = {
-      @Parameter(in = ParameterIn.PATH, name = "codigoCodigo", description = "Patient recognition code."),
-      @Parameter(in = ParameterIn.PATH, name = "id_agendamento", description = "Patient-related scheduling ID")
-    },
-
-    responses = {
-      @ApiResponse(
-        responseCode = "200", description = "Attendance was successfully confirmed.",
-        content = @Content(mediaType = "text/plain", schema = @Schema(type = "string") , examples = @ExampleObject("Sua presença foi confirmada com Sucesso!"))),
-  })
+      responses = {
+          @ApiResponse(responseCode = "200", description = "Attendance was successfully confirmed.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = @ExampleObject("Sua presença foi confirmada com Sucesso!"))),
+          @ApiResponse(responseCode = "409", description = "Schedule already have status EM_ESPERA.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = @ExampleObject("O paciente já possui um agendamento com o status EM_ESPERA."))),
+          @ApiResponse(responseCode = "404", description = "Patient or Schedule not found.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = {
+              @ExampleObject(name = "paciente_nao_encontrado", summary = "Quando paciente não existe", value = "Paciente não encontrado."),
+              @ExampleObject(name = "agendamento_nao_encontrado", summary = "Quando agendamento não existe", value = "Agendamento não encontrado.")
+          }))
+      })
   public ResponseEntity<?> marcandoPresenca(
       @RequestParam String codigoCodigo,
       @RequestParam Long id_agendamento) {
@@ -248,7 +248,7 @@ public class QueueController {
   @GetMapping("/primeirosPacientesDeTodosEspecialistas")
   @Operation(summary = "Retrieve the first patient on hold and the patient being cared for now for all specialists.")
   public ResponseEntity<List<Map<String, Object>>> getPrimeirosPacientesPorEspecialistas() {
-      return ResponseEntity.ok(getPrimeirosPacientesPorEspecialistasInfo());
+    return ResponseEntity.ok(getPrimeirosPacientesPorEspecialistasInfo());
   }
 
   // Método auxiliar para obter os pacientes por todos os especialistas
@@ -310,7 +310,6 @@ public class QueueController {
     return especialistasPacientesInfo;
   }
 
-
   @GetMapping("/contagemEspecialista/{especialistaId}")
   @Operation(summary = "Counts the amount of patient waiting for consultation.")
   public ResponseEntity<Map<String, Integer>> getContagemPacientesPorEspecialista(
@@ -339,63 +338,62 @@ public class QueueController {
   private int prioridadeContador = 0; // Contador para alternância entre prioridades
 
   private ResponseEntity<?> chamarPrimeiroPacientePorEspecialista(Long idEspecialista) {
-      // Busca todos os agendamentos em espera para o especialista com presença
-      // confirmada
-      List<Agendamento> agendamentos = agendamentoRepository
-          .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
-              idEspecialista, StatusAgendamento.EM_ESPERA, true);
+    // Busca todos os agendamentos em espera para o especialista com presença
+    // confirmada
+    List<Agendamento> agendamentos = agendamentoRepository
+        .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
+            idEspecialista, StatusAgendamento.EM_ESPERA, true);
 
-      if (agendamentos.isEmpty()) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body("Nenhum paciente em espera para o especialista com ID " + idEspecialista);
-      }
+    if (agendamentos.isEmpty()) {
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .body("Nenhum paciente em espera para o especialista com ID " + idEspecialista);
+    }
 
-      // Separamos pacientes com e sem prioridade
-      List<Agendamento> comPrioridade = agendamentos.stream()
-          .filter(a -> a.getPaciente().getPrioridade() == Prioridade.PESSOA_COM_ALGUMA_PRIORIDADE)
-          .sorted(Comparator.comparing(Agendamento::getDataHoraChegada))
-          .toList();
+    // Separamos pacientes com e sem prioridade
+    List<Agendamento> comPrioridade = agendamentos.stream()
+        .filter(a -> a.getPaciente().getPrioridade() == Prioridade.PESSOA_COM_ALGUMA_PRIORIDADE)
+        .sorted(Comparator.comparing(Agendamento::getDataHoraChegada))
+        .toList();
 
-      List<Agendamento> semPrioridade = agendamentos.stream()
-          .filter(a -> a.getPaciente().getPrioridade() == Prioridade.NENHUM)
-          .sorted(Comparator.comparing(Agendamento::getDataHoraChegada))
-          .toList();
+    List<Agendamento> semPrioridade = agendamentos.stream()
+        .filter(a -> a.getPaciente().getPrioridade() == Prioridade.NENHUM)
+        .sorted(Comparator.comparing(Agendamento::getDataHoraChegada))
+        .toList();
 
-      // Seleciona o próximo paciente com base na alternância
-      Agendamento proximoAgendamento = null;
+    // Seleciona o próximo paciente com base na alternância
+    Agendamento proximoAgendamento = null;
 
-      if (!comPrioridade.isEmpty() && (prioridadeContador < 2 || semPrioridade.isEmpty())) {
-        // Chama paciente com prioridade (máximo de 2 seguidos)
-        proximoAgendamento = comPrioridade.get(0);
-        prioridadeContador++;
-      } else if (!semPrioridade.isEmpty()) {
-        // Chama paciente sem prioridade
-        proximoAgendamento = semPrioridade.get(0);
-        prioridadeContador = 0; // Reseta o contador ao chamar um paciente sem prioridade
-      }
+    if (!comPrioridade.isEmpty() && (prioridadeContador < 2 || semPrioridade.isEmpty())) {
+      // Chama paciente com prioridade (máximo de 2 seguidos)
+      proximoAgendamento = comPrioridade.get(0);
+      prioridadeContador++;
+    } else if (!semPrioridade.isEmpty()) {
+      // Chama paciente sem prioridade
+      proximoAgendamento = semPrioridade.get(0);
+      prioridadeContador = 0; // Reseta o contador ao chamar um paciente sem prioridade
+    }
 
-      if (proximoAgendamento != null) {
-        // Atualiza o status do paciente para EM_ATENDIMENTO
-        proximoAgendamento.setStatus(StatusAgendamento.EM_ATENDIMENTO);
-        agendamentoRepository.save(proximoAgendamento);
+    if (proximoAgendamento != null) {
+      // Atualiza o status do paciente para EM_ATENDIMENTO
+      proximoAgendamento.setStatus(StatusAgendamento.EM_ATENDIMENTO);
+      agendamentoRepository.save(proximoAgendamento);
 
-        // Retorna as informações do paciente escolhido
-        Paciente paciente = proximoAgendamento.getPaciente();
-        Map<String, Object> pacienteInfo = new HashMap<>();
-        pacienteInfo.put("id", paciente.getId_paciente());
-        pacienteInfo.put("nome", paciente.getNomeCompleto());
-        pacienteInfo.put("sexo", paciente.getSexo());
-        pacienteInfo.put("prioridade", paciente.getPrioridade().name());
-        pacienteInfo.put("horaChegada", paciente.getDataHoraChegada());
-        pacienteInfo.put("status", proximoAgendamento.getStatus());
+      // Retorna as informações do paciente escolhido
+      Paciente paciente = proximoAgendamento.getPaciente();
+      Map<String, Object> pacienteInfo = new HashMap<>();
+      pacienteInfo.put("id", paciente.getId_paciente());
+      pacienteInfo.put("nome", paciente.getNomeCompleto());
+      pacienteInfo.put("sexo", paciente.getSexo());
+      pacienteInfo.put("prioridade", paciente.getPrioridade().name());
+      pacienteInfo.put("horaChegada", paciente.getDataHoraChegada());
+      pacienteInfo.put("status", proximoAgendamento.getStatus());
 
-        return ResponseEntity.ok(pacienteInfo);
-      } else {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body("Nenhum paciente disponível para atendimento no momento.");
-      }
+      return ResponseEntity.ok(pacienteInfo);
+    } else {
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .body("Nenhum paciente disponível para atendimento no momento.");
+    }
   }
-
 
   /**
    * Endpoint para adicionar uma observação ao prontuário de um paciente e marcar
@@ -411,42 +409,42 @@ public class QueueController {
       @RequestParam Long pacienteId,
       @RequestParam String novaObservacao) {
 
-      // Busca o paciente pelo ID
-      Optional<Paciente> pacienteOpt = pacienteRepository.findById(pacienteId);
+    // Busca o paciente pelo ID
+    Optional<Paciente> pacienteOpt = pacienteRepository.findById(pacienteId);
 
-      if (pacienteOpt.isEmpty()) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body("Paciente não encontrado.");
-      }
+    if (pacienteOpt.isEmpty()) {
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .body("Paciente não encontrado.");
+    }
 
-      Paciente paciente = pacienteOpt.get();
+    Paciente paciente = pacienteOpt.get();
 
-      // Atualiza o campo prontuario com a nova observação
-      String prontuarioAtualizado = paciente.getProntuario() == null
-          ? novaObservacao
-          : paciente.getProntuario() + "\n" + novaObservacao;
+    // Atualiza o campo prontuario com a nova observação
+    String prontuarioAtualizado = paciente.getProntuario() == null
+        ? novaObservacao
+        : paciente.getProntuario() + "\n" + novaObservacao;
 
-      paciente.setProntuario(prontuarioAtualizado);
+    paciente.setProntuario(prontuarioAtualizado);
 
-      // Busca o agendamento do paciente que está em atendimento
-      Optional<Agendamento> agendamentoOpt = agendamentoRepository
-          .findByPacienteAndStatus(paciente, StatusAgendamento.EM_ATENDIMENTO);
+    // Busca o agendamento do paciente que está em atendimento
+    Optional<Agendamento> agendamentoOpt = agendamentoRepository
+        .findByPacienteAndStatus(paciente, StatusAgendamento.EM_ATENDIMENTO);
 
-      if (agendamentoOpt.isEmpty()) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-            .body("Nenhum agendamento em atendimento encontrado para este paciente.");
-      }
+    if (agendamentoOpt.isEmpty()) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body("Nenhum agendamento em atendimento encontrado para este paciente.");
+    }
 
-      Agendamento agendamento = agendamentoOpt.get();
+    Agendamento agendamento = agendamentoOpt.get();
 
-      // Atualiza o status do agendamento para CONCLUIDO
-      agendamento.setStatus(StatusAgendamento.CONCLUIDO);
+    // Atualiza o status do agendamento para CONCLUIDO
+    agendamento.setStatus(StatusAgendamento.CONCLUIDO);
 
-      // Salva as alterações no banco de dados
-      pacienteRepository.save(paciente);
-      agendamentoRepository.save(agendamento);
+    // Salva as alterações no banco de dados
+    pacienteRepository.save(paciente);
+    agendamentoRepository.save(agendamento);
 
-      return ResponseEntity.ok("Observação adicionada ao prontuário e agendamento concluído com sucesso.");
+    return ResponseEntity.ok("Observação adicionada ao prontuário e agendamento concluído com sucesso.");
 
   }
 

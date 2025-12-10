@@ -10,6 +10,12 @@ import com.ddaaniel.queue.domain.model.enuns.TipoEspecialista;
 import com.ddaaniel.queue.domain.repository.*;
 import com.ddaaniel.queue.service.*;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,17 +33,9 @@ import java.util.stream.Collectors;
 @CrossOrigin
 @RestController
 @RequestMapping("/fila")
-@Tag(name = "Fila")
+@Tag(name = "Fila", description = "Queue endpoints")
 public class QueueController {
 
-  @Autowired
-  private FilaDePacientesService filaDePacientesService;
-
-  @Autowired
-  private EmailService emailService;
-
-  @Autowired
-  private Executor asyncExecutor;
 
   @Autowired
   private EspecialistaRepository especialistaRepository;
@@ -49,19 +47,11 @@ public class QueueController {
   private EspecialistaService especialistaService;
 
   @Autowired
-  private ContaService contaService;
-
-  @Autowired
   private PacienteRepository pacienteRepository;
 
   @Autowired
   private ContaRepository contaRepository;
 
-  // @Autowired
-  // private CadastramentoRepository cadastramentoRepository;
-
-  // @Autowired
-  // private CadastramentoService cadastramentoService;
 
   @Autowired
   private AgendamentoRepository agendamentoRepository;
@@ -172,7 +162,39 @@ public class QueueController {
   }
 
   @PutMapping("/marcarPresenca")
-  @Operation(summary = "Confirming the presence of the patient for a certain appointment.")
+  @Operation(
+    summary = "Confirming the presence of the patient for a certain appointment.",
+
+    description = """
+        Marca a presença do paciente na clínica, alterando o status do agendamento
+        de AGUARDANDO_CONFIRMACAO para EM_ESPERA.
+
+        ## Fluxo:
+        1. Paciente informa código de acesso
+        2. Sistema valida se paciente existe
+        3. Verifica se já está em espera (evita duplicidade)
+        4. Valida estado do agendamento
+        5. Atualiza status e horário de chegada
+
+        ## Restrições:
+        - Só funciona se status atual for AGUARDANDO_CONFIRMACAO
+        - Bloqueia se paciente já tiver outro agendamento EM_ESPERA
+        """,
+
+    tags = {"Fila", "Paciente"},
+
+    operationId = "confirmarPresenca",
+
+    parameters = {
+      @Parameter(in = ParameterIn.PATH, name = "codigoCodigo", description = "Patient recognition code."),
+      @Parameter(in = ParameterIn.PATH, name = "id_agendamento", description = "Patient-related scheduling ID")
+    },
+
+    responses = {
+      @ApiResponse(
+        responseCode = "200", description = "Attendance was successfully confirmed.",
+        content = @Content(mediaType = "text/plain", schema = @Schema(type = "string") , examples = @ExampleObject("Sua presença foi confirmada com Sucesso!"))),
+  })
   public ResponseEntity<?> marcandoPresenca(
       @RequestParam String codigoCodigo,
       @RequestParam Long id_agendamento) {

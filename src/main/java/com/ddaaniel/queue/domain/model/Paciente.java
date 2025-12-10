@@ -19,11 +19,11 @@ import java.util.Random;
 
 @NoArgsConstructor
 @Data
-@Entity //Define que a classe será mapeada no BD como uma entidade.
+@Entity
 public class Paciente{
 
-    @Id //Define que o atributo anotado como chave primaria.
-    @GeneratedValue(strategy = GenerationType.IDENTITY) //Estrategia de geração de chave.
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id_paciente;
 
     @Column(name = "nome_completo")

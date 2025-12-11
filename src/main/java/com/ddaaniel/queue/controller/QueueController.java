@@ -133,22 +133,16 @@ public class QueueController {
   @Operation(
     summary = "Seeking all registered specialists.",
     description = """
-      ....
+      Find All Especialistas in database with pagination.
 
       ## Fluxo:
-      1.
-      2.
-      3.
-      4.
+      1. Busca todos os especialistas com paginação
+      2. Mapea os resultados para EspecialistaRecordDtoResponce.java
 
-      ## Restrições:
-      - ...
-      - ...
-    """, tags = { "Agendamento" }, operationId = "CriaAgendamento"/* , */
-    // responses = {
-    //   @ApiResponse( responseCode = "201", description = "Create Schedule and update Patiente if exist.", content = @Content(mediaType = "text/plain", examples = @ExampleObject("Agendamento feito com sucesso."))),
-    //   @ApiResponse( responseCode = "400", description = "Field [field_name] is required.", content = @Content(mediaType = "application/json", examples = @ExampleObject("Campo [nome_do_campo] é obrigatório.")))
-    // }
+    """, tags = { "Especialistas" }, operationId = "AcharEspecialistas",
+    responses = {
+      @ApiResponse( responseCode = "200", description = "List all Especialistas.")
+    }
   )
   public List<EspecialistaRecordDtoResponce> getAllEspecialista(
       @RequestParam(name = "page", defaultValue = "0") Integer page,
@@ -157,7 +151,7 @@ public class QueueController {
     Page<Especialista> especialistas = especialistaService.findAllEspecialistas(page, pageSize);
 
     return especialistas.stream()
-        .map(EspecialistaRecordDtoResponce::new)
+        .map( (especialista) -> new EspecialistaRecordDtoResponce(especialista))
         .collect(Collectors.toList());
   }
 

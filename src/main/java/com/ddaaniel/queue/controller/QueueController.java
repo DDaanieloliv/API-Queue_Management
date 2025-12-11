@@ -39,6 +39,9 @@ import java.util.stream.Collectors;
 public class QueueController {
 
   @Autowired
+  private FilaDePacientesService queueService;
+
+  @Autowired
   private EspecialistaRepository especialistaRepository;
 
   @Autowired
@@ -56,20 +59,31 @@ public class QueueController {
   @Autowired
   private AgendamentoRepository agendamentoRepository;
 
-  @PostMapping("/criarEspecialista")
-  @Operation(summary = "Create new Especialista / Médico.")
-  public ResponseEntity<?> criarEspecialista(@Valid @RequestBody Especialista especialistaRequest) {
-    try {
-      // Chama o serviço para criar o especialista
-      especialistaService.criarEspecialista(especialistaRequest);
 
-      return ResponseEntity.status(HttpStatus.CREATED)
-          .body("Especialista criado com sucesso! Verifique o e-mail para as credenciais de acesso.");
-    } catch (Exception e) {
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Erro ao criar especialista: " + e.getMessage());
-    }
+  @PostMapping("/criarEspecialista")
+  @Operation(summary = "Create new Especialista / Médico.", description = """
+      Cria um especialista com os dados passados e cria uma
+      conta_especialista para ele com a respecitva especialidade.
+
+      ## Fluxo:
+      1. Paciente informa código de acesso
+      2. Sistema valida se paciente existe
+      3. Verifica se já está em espera (evita duplicidade)
+      4. Valida estado do agendamento
+      5. Atualiza status e horário de chegada
+
+      ## Restrições:
+      - Só funciona se status atual for AGUARDANDO_CONFIRMACAO
+      - Bloqueia se paciente já tiver outro agendamento EM_ESPERA
+      """)
+  public ResponseEntity<?> criarEspecialista(@Valid @RequestBody Especialista especialistaRequest) {
+    // Chama o serviço para criar o especialista
+    especialistaService.criarEspecialista(especialistaRequest);
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body("Especialista criado com sucesso! Verifique o e-mail para as credenciais de acesso.");
   }
+
+
 
   @PostMapping("/agendar")
   @Operation(summary = "Creating scheduling and registering patient.")
@@ -97,7 +111,7 @@ public class QueueController {
   }
 
   @GetMapping("/pegarAgendamentos")
-  // @Operation(summary = "Taking all the scheduled schedules for today.")
+  @Operation(summary = "Taking all the scheduled schedules for today.")
   public List<AgendamentoDTO> getAgendaamentosByCodigoCodigo(@RequestParam String codigoCodigo) {
 
     return agendamentoService.getAllAgendamentosByCodigoCodigo(codigoCodigo);
@@ -162,87 +176,37 @@ public class QueueController {
   }
 
   @PutMapping("/marcarPresenca")
-  @Operation(summary = "Confirming the presence of the patient for a certain appointment.",
+  @Operation(summary = "Confirming the presence of the patient for a certain appointment.", description = """
+      Marca a presença do paciente na clínica, alterando o status do agendamento
+      de AGUARDANDO_CONFIRMACAO para EM_ESPERA.
 
-      description = """
-          Marca a presença do paciente na clínica, alterando o status do agendamento
-          de AGUARDANDO_CONFIRMACAO para EM_ESPERA.
+      ## Fluxo:
+      1. Paciente informa código de acesso
+      2. Sistema valida se paciente existe
+      3. Verifica se já está em espera (evita duplicidade)
+      4. Valida estado do agendamento
+      5. Atualiza status e horário de chegada
 
-          ## Fluxo:
-          1. Paciente informa código de acesso
-          2. Sistema valida se paciente existe
-          3. Verifica se já está em espera (evita duplicidade)
-          4. Valida estado do agendamento
-          5. Atualiza status e horário de chegada
-
-          ## Restrições:
-          - Só funciona se status atual for AGUARDANDO_CONFIRMACAO
-          - Bloqueia se paciente já tiver outro agendamento EM_ESPERA
-          """,
-
-      tags = { "Fila", "Paciente" }, operationId = "confirmarPresenca",
-
-      parameters = {
-          @Parameter(in = ParameterIn.QUERY, name = "codigoCodigo", description = "Patient recognition code."),
-          @Parameter(in = ParameterIn.QUERY, name = "id_agendamento", description = "Patient-related scheduling ID")
-      },
-
-      responses = {
-          @ApiResponse(responseCode = "200", description = "Attendance was successfully confirmed.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = @ExampleObject("Sua presença foi confirmada com Sucesso!"))),
-          @ApiResponse(responseCode = "409", description = "Schedule already have status EM_ESPERA.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = @ExampleObject("O paciente já possui um agendamento com o status EM_ESPERA."))),
-          @ApiResponse(responseCode = "404", description = "Patient or Schedule not found.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = {
-              @ExampleObject(name = "paciente_nao_encontrado", summary = "Quando paciente não existe", value = "Paciente não encontrado."),
-              @ExampleObject(name = "agendamento_nao_encontrado", summary = "Quando agendamento não existe", value = "Agendamento não encontrado.")
-          }))
-      })
-  public ResponseEntity<?> marcandoPresenca(
+      ## Restrições:
+      - Só funciona se status atual for AGUARDANDO_CONFIRMACAO
+      - Bloqueia se paciente já tiver outro agendamento EM_ESPERA
+      """, tags = { "Fila", "Paciente" }, operationId = "confirmarPresenca", parameters = {
+      @Parameter(in = ParameterIn.QUERY, name = "codigoCodigo", description = "Patient recognition code."),
+      @Parameter(in = ParameterIn.QUERY, name = "id_agendamento", description = "Patient-related scheduling ID")
+  }, responses = {
+      @ApiResponse(responseCode = "200", description = "Attendance was successfully confirmed.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = @ExampleObject("Sua presença foi confirmada com Sucesso!"))),
+      @ApiResponse(responseCode = "409", description = "Schedule already have status EM_ESPERA.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = @ExampleObject("O paciente já possui um agendamento com o status EM_ESPERA."))),
+      @ApiResponse(responseCode = "404", description = "Patient or Schedule not found.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = {
+          @ExampleObject(name = "paciente_nao_encontrado", summary = "Quando paciente não existe", value = "Paciente não encontrado."),
+          @ExampleObject(name = "agendamento_nao_encontrado", summary = "Quando agendamento não existe", value = "Agendamento não encontrado.")
+      }))
+  })
+  public ResponseEntity<String> marcandoPresenca(
       @RequestParam String codigoCodigo,
       @RequestParam Long id_agendamento) {
 
-    // Busca o paciente pelo código
-    var pacienteOpt = pacienteRepository.findByCodigoCodigo(codigoCodigo);
-
-    if (pacienteOpt.isPresent()) {
-      Paciente objPaciente = pacienteOpt.get();
-
-      // Verifica se já existe um agendamento com status EM_ESPERA para o paciente
-      boolean jaEmEspera = agendamentoRepository.existsByPacienteAndStatus(objPaciente, StatusAgendamento.EM_ESPERA);
-      if (jaEmEspera) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-            .body("O paciente já possui um agendamento com o status EM_ESPERA.");
-      }
-
-      // Busca o agendamento pelo ID
-      Optional<Agendamento> agendamentoOpt = agendamentoRepository.findById(id_agendamento);
-      if (agendamentoOpt.isPresent()) {
-        Agendamento objAgendamento = agendamentoOpt.get();
-
-        if (objAgendamento.getStatus() != StatusAgendamento.AGUARDANDO_CONFIRMACAO) {
-          throw new IllegalStateException("O agendamento não está em um estado válido para essa operação.");
-        }
-
-        // Atualiza o status do agendamento e o campo dataHoraChegada
-        objAgendamento.setStatus(StatusAgendamento.EM_ESPERA);
-        objAgendamento.setDataHoraChegada(LocalDateTime.now());
-        agendamentoRepository.save(objAgendamento); // SALVA IMEDIATAMENTE O AGENDAMENTO
-
-        // Atualiza o paciente se necessário
-        if (!objPaciente.getPresencaConfirmado()) {
-          objPaciente.setPresencaConfirmado(true);
-          objPaciente.setDataHoraChegada(LocalDateTime.now());
-          pacienteRepository.save(objPaciente); // SALVA IMEDIATAMENTE O PACIENTE
-        }
-
-        return ResponseEntity.status(HttpStatus.OK)
-            .body("Sua presença foi confirmada com Sucesso!");
-      } else {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body("Agendamento não encontrado.");
-      }
-    } else {
-      return ResponseEntity.status(HttpStatus.NOT_FOUND)
-          .body("Paciente não encontrado.");
-    }
+    queueService.marcarPresenca(codigoCodigo, id_agendamento);
+    return ResponseEntity.ok("Sua presença foi confirmada com Sucesso!");
   }
 
   @GetMapping("/primeirosPacientesDeTodosEspecialistas")

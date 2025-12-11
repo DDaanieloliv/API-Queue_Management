@@ -1,69 +1,67 @@
 package com.ddaaniel.queue.exception;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.util.HashMap;
-import java.util.Map;
-
 @RestControllerAdvice
 public class ValidationExceptionHandler {
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public Map<String, String> handleValidationExceptions(MethodArgumentNotValidException ex) {
-        Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getFieldErrors().forEach(error -> {
-            String fieldName = error.getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
-        });
-        return errors;
-    }
+  /*
+   * @param ex RecursoNaoEncontradoException exception class captured
+   *
+   * @return status HTTP 404 NOT FOUND.
+   */
+  @ExceptionHandler(RecursoNaoEncontradoException.class)
+  public ResponseEntity<String> handleRecursonNotFoundException(RecursoNaoEncontradoException ex) {
+    // Retorna o status 404 e a mensagem da exceção no corpo da resposta
+    return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_FOUND);
+  }
 
+  /*
+   * @param ex ConflitoDeStatusException excepetion class captured
+   *
+   * @return status HTTP 409 CONFLICT
+   */
+  @ExceptionHandler(ConflitoDeStatusException.class)
+  public ResponseEntity<String> handleConflitoDeStatusException(ConflitoDeStatusException ex) {
+    // Retorna o status 409 e a mensagem da exceção no corpo da resposta
+    return new ResponseEntity<>(ex.getMessage(), HttpStatus.CONFLICT);
+  }
+
+  /*
+   * @param ex IllegalStateException exceprion class captured
+   *
+   * @return status HTTP 400 BAD_REQUEST
+   */
+  @ExceptionHandler(IllegalStateException.class)
+  public ResponseEntity<String> handleIllegalStateException(IllegalStateException ex) {
+    return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+  }
+
+  /*
+   * @param ex MethodArgumentNotValidException exception class captured in methods with annotation '@Valid' or '@Validated'
+   * that his Object in requestBody or model attribute has Bean Validation annotations (@NotNull, @NotEmpty, @Size, @Pattern, @CPF, etc.)
+   *
+   * @return Map<String, String> with status HTTP 400 BAD_REQUEST
+   */
+  @ExceptionHandler(MethodArgumentNotValidException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  public Map<String, String> handleValidationExceptions(MethodArgumentNotValidException ex) {
+
+    Map<String, String> errorsMap = new HashMap<>();
+    ex.getBindingResult().getFieldErrors().forEach(error -> {
+      String fieldName = error.getField();
+      String errorMessage = error.getDefaultMessage();
+      errorsMap.put(fieldName, errorMessage);
+    });
+    return errorsMap;
+  }
 
 }
-
-
-/*
-A ValidationExceptionHandler é responsável por capturar exceções de validação e formatar as
-respostas de erro antes de enviá-las para o cliente. Vamos examinar o que essa classe faz:
-
-    @RestControllerAdvice:
-        indica que essa classe lida com exceções em todos os controladores.
-
-Método handleValidationExceptions:
-
-    Este método lida especificamente com a exceção MethodArgumentNotValidException, que é
-    disparada quando um campo não passa nas validações declaradas, por exemplo, um @NotEmpty
-    aplicado a um campo que foi enviado vazio.
-
-    @ExceptionHandler(MethodArgumentNotValidException.class):
-        captura a exceção MethodArgumentNotValidException.
-
-    @ResponseStatus(HttpStatus.BAD_REQUEST):
-        define que a resposta HTTP será 400 Bad Request.
-
-    Lógica do método:
-        percorre todos os erros de validação (ex.getBindingResult().getAllErrors()) e extrai:
-
-            - fieldName: o nome do campo com erro.
-
-            - errorMessage: a mensagem de erro (por exemplo, "O campo nome é obrigatório").
-
-            - Retorno: devolve uma Map com os nomes dos campos como chaves e as mensagens de
-                erro como valores, para que o cliente receba todas as mensagens em uma
-                única resposta.
-
-
-Se removêssemos ValidationExceptionHandler:
-
-A resposta de erro se tornaria uma estrutura mais complexa e menos amigável, pois o Spring
-devolveria uma resposta padrão em JSON que não é formatada.
-
-O Spring MVC traria um JSON de erro com informações técnicas adicionais e desnecessárias
-para o usuário, o que dificultaria a interpretação das mensagens.
-*/

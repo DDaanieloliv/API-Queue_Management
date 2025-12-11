@@ -5,6 +5,9 @@ import com.ddaaniel.queue.domain.model.Paciente;
 import com.ddaaniel.queue.domain.model.enuns.StatusAgendamento;
 import com.ddaaniel.queue.domain.repository.AgendamentoRepository;
 import com.ddaaniel.queue.domain.repository.PacienteRepository;
+import com.ddaaniel.queue.exception.ConflitoDeStatusException;
+import com.ddaaniel.queue.exception.RecursoNaoEncontradoException;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -23,65 +26,82 @@ public class FilaDePacientesService {
   private AgendamentoRepository agendamentoRepository;
 
 
-  public boolean isValidSchedule(String codigoCodigo, Long id_agendamento) {
-
-    var schedule = agendamentoRepository.findById(id_agendamento);
-    if (schedule.isEmpty() || schedule.get().getStatus() != StatusAgendamento.AGUARDANDO_CONFIRMACAO) return false;
-
-    if (schedule.get().getPaciente().getCodigoCodigo() != codigoCodigo) return false;
-
-
-    return true;
-  }
-
-
-
   public void marcarPresenca(String codigoCodigo, Long id_agendamento) {
     // Busca o paciente pelo código
-    var pacienteOpt = pacienteRepository.findByCodigoCodigo(codigoCodigo);
+    var pacienteOpt = pacienteRepository.findByCodigoCodigo(codigoCodigo)
+        .orElseThrow(() -> new RecursoNaoEncontradoException("Código paciente não encontrado."));
 
-    if (pacienteOpt.isPresent()) {
+    // Busca o agendamento pelo ID
+    var agendamentoOpt = agendamentoRepository.findById(id_agendamento)
+        .orElseThrow(() -> new RecursoNaoEncontradoException("Agendamento não encontrado."));
 
-      // Verifica se já existe um agendamento com status EM_ESPERA para o paciente
-      boolean jaEmEspera = agendamentoRepository.existsByPacienteAndStatus(pacienteOpt.get(),
-          StatusAgendamento.EM_ESPERA);
-      if (jaEmEspera) {
-        // throw new IllegalStateException("O paciente já possui um agendamento com o
-        // status EM_ESPERA.");
-      }
+    if (agendamentoOpt.getStatus() != StatusAgendamento.AGUARDANDO_CONFIRMACAO)
+      throw new ConflitoDeStatusException("O paciente já possui um agendamento com o status EM_ESPERA.");
 
-      // Busca o agendamento pelo ID
-      Optional<Agendamento> agendamentoOpt = agendamentoRepository.findById(id_agendamento);
-      if (agendamentoOpt.isPresent()) {
-        Agendamento objAgendamento = agendamentoOpt.get();
+    // Atualiza o status do agendamento e o campo dataHoraChegada
+    agendamentoOpt.setStatus(StatusAgendamento.EM_ESPERA);
+    agendamentoOpt.setDataHoraChegada(LocalDateTime.now());
+    agendamentoRepository.save(agendamentoOpt); // SALVA IMEDIATAMENTE O AGENDAMENTO
 
-        if (objAgendamento.getStatus() != StatusAgendamento.AGUARDANDO_CONFIRMACAO) {
-          throw new IllegalStateException("O agendamento não está em um estado válido para essa operação.");
-        }
-
-        // Atualiza o status do agendamento e o campo dataHoraChegada
-        objAgendamento.setStatus(StatusAgendamento.EM_ESPERA);
-        objAgendamento.setDataHoraChegada(LocalDateTime.now());
-        agendamentoRepository.save(objAgendamento); // SALVA IMEDIATAMENTE O AGENDAMENTO
-
-        // Atualiza o paciente se necessário
-        if (!pacienteOpt.get().getPresencaConfirmado()) {
-          pacienteOpt.get().setPresencaConfirmado(true);
-          pacienteOpt.get().setDataHoraChegada(LocalDateTime.now());
-          pacienteRepository.save(pacienteOpt.get()); // SALVA IMEDIATAMENTE O PACIENTE
-        }
-
-        // return ResponseEntity.status(HttpStatus.OK)
-        // .body("Sua presença foi confirmada com Sucesso!");
-      } else {
-        // return ResponseEntity.status(HttpStatus.NOT_FOUND)
-        // .body("Agendamento não encontrado.");
-      }
-    } else {
-      // return ResponseEntity.status(HttpStatus.NOT_FOUND)
-      // .body("Paciente não encontrado.");
+    // Atualiza o paciente se necessário
+    if (!pacienteOpt.getPresencaConfirmado()) {
+      pacienteOpt.setPresencaConfirmado(true);
+      pacienteOpt.setDataHoraChegada(LocalDateTime.now());
+      pacienteRepository.save(pacienteOpt); // SALVA IMEDIATAMENTE O PACIENTE
     }
+
   }
+
+    // // Busca o paciente pelo código
+    // var pacienteOpt = pacienteRepository.findByCodigoCodigo(codigoCodigo);
+    //
+    // if (pacienteOpt.isPresent()) {
+    // Paciente objPaciente = pacienteOpt.get();
+    //
+    // // Verifica se já existe um agendamento com status EM_ESPERA para o paciente
+    // boolean jaEmEspera =
+    // agendamentoRepository.existsByPacienteAndStatus(objPaciente,
+    // StatusAgendamento.EM_ESPERA);
+    // if (jaEmEspera) {
+    // return ResponseEntity.status(HttpStatus.CONFLICT)
+    // .body("O paciente já possui um agendamento com o status EM_ESPERA.");
+    // }
+    //
+    // // Busca o agendamento pelo ID
+    // Optional<Agendamento> agendamentoOpt =
+    // agendamentoRepository.findById(id_agendamento);
+    // if (agendamentoOpt.isPresent()) {
+    // Agendamento objAgendamento = agendamentoOpt.get();
+    //
+    // if (objAgendamento.getStatus() != StatusAgendamento.AGUARDANDO_CONFIRMACAO) {
+    // throw new IllegalStateException("O agendamento não está em um estado válido
+    // para essa operação.");
+    // }
+    //
+    // // Atualiza o status do agendamento e o campo dataHoraChegada
+    // objAgendamento.setStatus(StatusAgendamento.EM_ESPERA);
+    // objAgendamento.setDataHoraChegada(LocalDateTime.now());
+    // agendamentoRepository.save(objAgendamento); // SALVA IMEDIATAMENTE O
+    // AGENDAMENTO
+    //
+    // // Atualiza o paciente se necessário
+    // if (!objPaciente.getPresencaConfirmado()) {
+    // objPaciente.setPresencaConfirmado(true);
+    // objPaciente.setDataHoraChegada(LocalDateTime.now());
+    // pacienteRepository.save(objPaciente); // SALVA IMEDIATAMENTE O PACIENTE
+    // }
+    //
+    // return ResponseEntity.status(HttpStatus.OK)
+    // .body("Sua presença foi confirmada com Sucesso!");
+    // } else {
+    // return ResponseEntity.status(HttpStatus.NOT_FOUND)
+    // .body("Agendamento não encontrado.");
+    // }
+    // } else {
+    // return ResponseEntity.status(HttpStatus.NOT_FOUND)
+    // .body("Paciente não encontrado.");
+    // }
+
 
   // Adicionar paciente na fila (salva no banco de dados)
   public void adicionarAgendamento(Agendamento agendamento) {

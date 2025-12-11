@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class EspecialistaService {
@@ -41,23 +42,8 @@ public class EspecialistaService {
     return especialistas;
   }
 
-
-
+  @Transactional
   public void criarEspecialista(Especialista especialista) {
-    // Gera o código de acesso
-    especialista.gerarCodigoCodigo();
-
-    // Cria a Conta associada ao Especialista
-    Conta conta = new Conta(
-        especialista.getEmail(),        // Login da conta será o email do especialista
-        especialista.getCodigoCodigo(), // Senha da conta será o código gerado
-        Role.ESPECIALISTA               // Define a role como ESPECIALISTA
-    );
-    contaRepository.save(conta);
-
-    // Associa a Conta criada ao Especialista
-    especialista.setConta(conta);
-
     // Configura o relacionamento entre Especialista e Indisponibilidades
     if (especialista.getIndisponibilidades() != null && !especialista.getIndisponibilidades().isEmpty()) {
       for (Indisponibilidade indisponibilidade : especialista.getIndisponibilidades()) {
@@ -65,7 +51,22 @@ public class EspecialistaService {
       }
     }
 
-    // Salva o Especialista no banco (o Hibernate cuidará das indisponibilidades por cascade)
+    // Gera o código de acesso
+    especialista.gerarCodigoCodigo();
+
+    // Cria a Conta associada ao Especialista
+    Conta conta = new Conta(
+        especialista.getEmail(), // Login da conta será o email do especialista
+        especialista.getCodigoCodigo(), // Senha da conta será o código gerado
+        Role.ESPECIALISTA // Define a role como ESPECIALISTA
+    );
+    contaRepository.save(conta);
+
+    // Associa a Conta criada ao Especialista
+    especialista.setConta(conta);
+
+    // Salva o Especialista no banco (o Hibernate cuidará das indisponibilidades por
+    // cascade)
     especialistaRepository.save(especialista);
 
     // Envia o e-mail com as credenciais de acesso

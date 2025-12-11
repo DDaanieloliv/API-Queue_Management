@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
@@ -25,6 +26,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -59,46 +61,95 @@ public class QueueController {
   @Autowired
   private AgendamentoRepository agendamentoRepository;
 
-
   @PostMapping("/criarEspecialista")
   @Operation(summary = "Create new Especialista / Médico.", description = """
-      Cria um especialista com os dados passados e cria uma
-      conta_especialista para ele com a respecitva especialidade.
+    Cria um especialista com os dados passados e cria uma
+    conta_especialista para ele com a respecitva especialidade.
 
-      ## Fluxo:
-      1. Paciente informa código de acesso
-      2. Sistema valida se paciente existe
-      3. Verifica se já está em espera (evita duplicidade)
-      4. Valida estado do agendamento
-      5. Atualiza status e horário de chegada
+    ## Fluxo:
+    1. Salva as possíveis Indisponibilidades
+    2. Sistema cria a conta_especialista
+    3. Adiciona o especialista
 
-      ## Restrições:
-      - Só funciona se status atual for AGUARDANDO_CONFIRMACAO
-      - Bloqueia se paciente já tiver outro agendamento EM_ESPERA
-      """)
-  public ResponseEntity<?> criarEspecialista(@Valid @RequestBody Especialista especialistaRequest) {
+    ## Restrições:
+    - Só funciona se os campos do requestBody especialista forem preenchidos corretamente
+    - Bloqueia se houver campo null
+    """, tags = { "Especialista" }, operationId = "AdicionaEspecialista",
+    responses = {
+      @ApiResponse(responseCode = "201", description = "Especialista added with success.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string", example = "Especialista criado com sucesso! Verifique o e-mail para as credenciais de acesso." ), examples = @ExampleObject("Especialista criado com sucesso! Verifique o e-mail para as credenciais de acesso."))),
+      @ApiResponse(responseCode = "400", description = "Field [name_field] is required.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = @ExampleObject("Campo [field_name] é obrigatório.")))
+    }
+  )
+  public ResponseEntity<?> criarEspecialista(
+      @io.swagger.v3.oas.annotations.parameters.RequestBody(
+        description = "Dados completos do novo especialista a ser criado.",
+        required = true,
+        content = @Content(schema = @Schema(implementation = Especialista.class)))
+
+      @Valid @RequestBody Especialista especialistaRequest
+  ) {
     // Chama o serviço para criar o especialista
     especialistaService.criarEspecialista(especialistaRequest);
     return ResponseEntity.status(HttpStatus.CREATED)
         .body("Especialista criado com sucesso! Verifique o e-mail para as credenciais de acesso.");
   }
 
-
-
   @PostMapping("/agendar")
-  @Operation(summary = "Creating scheduling and registering patient.")
-  public ResponseEntity<?> adicionarAgendamento(@Valid @RequestBody Agendamento agendamento) {
-    try {
+  @Operation(
+    summary = "Creating scheduling and registering patient.",
+    description = """
+      Adiciona o agendamento e atualiza as informações do paciente.
+
+      ## Fluxo:
+      1. Busca o paciente pelo CPF
+      2. Sistema busca o paciente pelo CPF
+      3. Se paciente já existe atualiza as informações do paciente
+      4. Se paciente não existe, adiciona-se um novo paciente com o agendamento e conta_paciente
+
+      ## Restrições:
+      - Só funciona se os campos do requestBody agendamento forem preenchidos corretamente
+      - Bloqueia se houver campo null
+    """, tags = { "Agendamento" }, operationId = "CriaAgendamento",
+    responses = {
+      @ApiResponse( responseCode = "201", description = "Create Schedule and update Patiente if exist.", content = @Content(mediaType = "text/plain", examples = @ExampleObject("Agendamento feito com sucesso."))),
+      @ApiResponse( responseCode = "400", description = "Field [field_name] is required.", content = @Content(mediaType = "application/json", examples = @ExampleObject("Campo [nome_do_campo] é obrigatório.")))
+    }
+  )
+  public ResponseEntity<?> adicionarAgendamento(
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+      required = true,
+      description = "Dados completos do novo especialista a ser criado.",
+      content = @Content(schema = @Schema(implementation = Agendamento.class))
+    )
+    @Valid @RequestBody Agendamento agendamento) {
       // Chama o serviço para processar o agendamento
       agendamentoService.adicionarAgendamento(agendamento);
       return ResponseEntity.status(HttpStatus.CREATED).body("Agendamento feito com sucesso.");
-    } catch (Exception e) {
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-    }
   }
 
+
+
   @GetMapping("/findEspecialista")
-  @Operation(summary = "Seeking all registered specialists.")
+  @Operation(
+    summary = "Seeking all registered specialists.",
+    description = """
+      ....
+
+      ## Fluxo:
+      1.
+      2.
+      3.
+      4.
+
+      ## Restrições:
+      - ...
+      - ...
+    """, tags = { "Agendamento" }, operationId = "CriaAgendamento"/* , */
+    // responses = {
+    //   @ApiResponse( responseCode = "201", description = "Create Schedule and update Patiente if exist.", content = @Content(mediaType = "text/plain", examples = @ExampleObject("Agendamento feito com sucesso."))),
+    //   @ApiResponse( responseCode = "400", description = "Field [field_name] is required.", content = @Content(mediaType = "application/json", examples = @ExampleObject("Campo [nome_do_campo] é obrigatório.")))
+    // }
+  )
   public List<EspecialistaRecordDtoResponce> getAllEspecialista(
       @RequestParam(name = "page", defaultValue = "0") Integer page,
       @RequestParam(name = "pageSize", defaultValue = "10") Integer pageSize) {
@@ -138,8 +189,8 @@ public class QueueController {
       // emailOrCpf.equals(cadastramentoOpt.get().getEmail())) {
       // return ResponseEntity.ok(cadastramentoOpt.get().getRole());
     } else if (contaOpt.isPresent() && emailOrCpf.equals(contaOpt.get().getLogin())) {
-      Conta conta = contaOpt.get();
-      Role role = conta.getRoleEnum();
+        Conta conta = contaOpt.get();
+        Role role = conta.getRoleEnum();
 
       if (role == Role.ESPECIALISTA) {
         Especialista especialista = conta.getEspecialista();
@@ -181,8 +232,8 @@ public class QueueController {
       de AGUARDANDO_CONFIRMACAO para EM_ESPERA.
 
       ## Fluxo:
-      1. Paciente informa código de acesso
-      2. Sistema valida se paciente existe
+      1. Sistema valida se paciente existe
+      2. verifica se o agendamento existe
       3. Verifica se já está em espera (evita duplicidade)
       4. Valida estado do agendamento
       5. Atualiza status e horário de chegada
@@ -190,10 +241,11 @@ public class QueueController {
       ## Restrições:
       - Só funciona se status atual for AGUARDANDO_CONFIRMACAO
       - Bloqueia se paciente já tiver outro agendamento EM_ESPERA
-      """, tags = { "Fila", "Paciente" }, operationId = "confirmarPresenca", parameters = {
+      """, tags = { "Fila", "Paciente" }, operationId = "confirmarPresenca",
+    parameters = {
       @Parameter(in = ParameterIn.QUERY, name = "codigoCodigo", description = "Patient recognition code."),
       @Parameter(in = ParameterIn.QUERY, name = "id_agendamento", description = "Patient-related scheduling ID")
-  }, responses = {
+    }, responses = {
       @ApiResponse(responseCode = "200", description = "Attendance was successfully confirmed.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = @ExampleObject("Sua presença foi confirmada com Sucesso!"))),
       @ApiResponse(responseCode = "409", description = "Schedule already have status EM_ESPERA.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = @ExampleObject("O paciente já possui um agendamento com o status EM_ESPERA."))),
       @ApiResponse(responseCode = "404", description = "Patient or Schedule not found.", content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"), examples = {

@@ -11,6 +11,8 @@ import com.ddaaniel.queue.domain.repository.AgendamentoRepository;
 import com.ddaaniel.queue.domain.repository.ContaRepository;
 import com.ddaaniel.queue.domain.repository.EspecialistaRepository;
 import com.ddaaniel.queue.domain.repository.PacienteRepository;
+import com.ddaaniel.queue.exception.RecursoNaoEncontradoException;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -98,12 +100,11 @@ public class AgendamentoService {
     Optional<Paciente> pacienteOpt = pacienteRepository.findByCodigoCodigo(codigoCodigo);
 
     if (pacienteOpt.isEmpty()) {
-      throw new RuntimeException("Paciente com o código fornecido não encontrado.");
+      throw new RecursoNaoEncontradoException("Paciente com o código fornecido não encontrado.");
     }
 
     Paciente paciente = pacienteOpt.get();
     LocalDate today = LocalDate.now();
-
     /*
      * // Filtra os agendamentos pela data
      * List<Agendamento> agendamentosDeHoje = paciente.getAgendamentos().stream()
@@ -113,7 +114,6 @@ public class AgendamentoService {
      *
      * return agendamentosDeHoje;
      */
-
     return paciente.getAgendamentos().stream()
         .filter(agendamento -> agendamento.getDataAgendamento().equals(today))
         .map(agendamento -> new AgendamentoDTO(

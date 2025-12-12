@@ -13,6 +13,17 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class ValidationExceptionHandler {
 
+
+  /*
+   * @param ex LoginIncorretoException exception class captured
+   *
+   * @return status HTTP 401 UNAUTHORIZED.
+   */
+  public ResponseEntity<String> handleLoginIncorretoException(LoginIncorretoException ex) {
+    // Retorna o status 401 e a mensagem da exceção no corpo da resposta
+    return new ResponseEntity<String>(ex.getMessage(), HttpStatus.UNAUTHORIZED);
+  }
+
   /*
    * @param ex RecursoNaoEncontradoException exception class captured
    *

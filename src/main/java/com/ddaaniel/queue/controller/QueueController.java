@@ -118,8 +118,7 @@ public class QueueController {
   public ResponseEntity<?> adicionarAgendamento(
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
       required = true,
-      description = "Dados completos do novo especialista a ser criado.",
-      content = @Content(schema = @Schema(implementation = Agendamento.class))
+      description = "Dados completos do novo especialista a ser criado."
     )
     @Valid @RequestBody Agendamento agendamento) {
       // Chama o serviço para processar o agendamento
@@ -156,69 +155,53 @@ public class QueueController {
   }
 
   @GetMapping("/pegarAgendamentos")
-  @Operation(summary = "Taking all the scheduled schedules for today.")
-  public List<AgendamentoDTO> getAgendaamentosByCodigoCodigo(@RequestParam String codigoCodigo) {
+  @Operation(summary = "Taking all the scheduled schedules for today.",
+    description = """
+    Find All Agendamentos in database based in Paciente code.
 
+    ## Fluxo:
+    1. Busca paciente pelo parametro codigoCodigo
+    2. Busca todos os seus agendamentos para o dia atual
+
+    ## Restrições:
+    - Só funciona se o campo codigoCodigo for não nulo e válido
+    """, tags = { "Agendamento" }, operationId = "AcharAgendamentos",
+    parameters = {
+      @Parameter(in = ParameterIn.QUERY, name = "codigoCodigo", description = "Código do paciente.")
+    }
+  )
+  public List<AgendamentoDTO> getAgendaamentosByCodigoCodigo(@RequestParam String codigoCodigo) {
     return agendamentoService.getAllAgendamentosByCodigoCodigo(codigoCodigo);
   }
 
+
+
   @GetMapping("/login")
-  @Operation(summary = "Seeking authorization according to credentials.")
+  @Operation(summary = "Seeking authorization according to credentials.",
+    description = """
+    Find All Agendamentos in database based in Paciente code.
+
+    ## Fluxo:
+    1. Busca paciente pelo parametro codigoCodigo
+    2. Busca todos os seus agendamentos para o dia atual
+
+    """, tags = { "login", "Paciente", "Especialista" }, operationId = "fazerLogin",
+    parameters = {
+      @Parameter(name = "emailOrCpf", description = "User Email"),
+      @Parameter(name = "password", description = "User Password")
+    },
+    responses = {
+      @ApiResponse(responseCode = "200", description = "Login efetuado com sucesso.")
+    }
+  )
   public ResponseEntity<?> getRoleByLogin(
       @RequestParam String emailOrCpf,
       @RequestParam String password) {
 
-    Optional<Paciente> pacienteOpt = pacienteRepository.findByCodigoCodigo(password);
-    // Optional<Cadastramento> cadastramentoOpt =
-    // cadastramentoRepository.findByCodigoCodigo(password);
-    Optional<Conta> contaOpt = contaRepository.findByPassword(password);
-
-    if (pacienteOpt.isPresent() && emailOrCpf.equals(pacienteOpt.get().getEmail())) {
-      Paciente paciente = pacienteOpt.get();
-      Map<String, Object> response = new HashMap<>();
-      response.put("role", paciente.getRole());
-      response.put("idPaciente", paciente.getId_paciente());
-      return ResponseEntity.ok(response);
-      // } else if (cadastramentoOpt.isPresent() &&
-      // emailOrCpf.equals(cadastramentoOpt.get().getEmail())) {
-      // return ResponseEntity.ok(cadastramentoOpt.get().getRole());
-    } else if (contaOpt.isPresent() && emailOrCpf.equals(contaOpt.get().getLogin())) {
-        Conta conta = contaOpt.get();
-        Role role = conta.getRoleEnum();
-
-      if (role == Role.ESPECIALISTA) {
-        Especialista especialista = conta.getEspecialista();
-        if (especialista != null) {
-          Map<String, Object> response = new HashMap<>();
-          response.put("role", role);
-          response.put("idEspecialista", especialista.getId());
-          return ResponseEntity.ok(response);
-        } else {
-          return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-              .body("Erro: Conta do especialista não associada a nenhum especialista.");
-        }
-      }
-
-      if (role == Role.PACIENTE) {
-        Paciente paciente = conta.getPaciente();
-        if (paciente != null) {
-          Map<String, Object> response = new HashMap<>();
-          response.put("role", role);
-          response.put("idPaciente", paciente.getId_paciente());
-          return ResponseEntity.ok(response);
-        } else {
-          return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-              .body("Erro: Conta do paciente não associada a nenhum paciente.");
-        }
-      }
-
-      return ResponseEntity.ok(role);
-    } else {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-          .body("Email ou senha incorretos.");
-    }
-
+    var response = queueService.findRoleByLogin(emailOrCpf, password);
+    return ResponseEntity.ok(response);
   }
+
 
   @PutMapping("/marcarPresenca")
   @Operation(summary = "Confirming the presence of the patient for a certain appointment.", description = """

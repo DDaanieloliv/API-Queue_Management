@@ -1,18 +1,26 @@
 package com.ddaaniel.queue.service;
 
 import com.ddaaniel.queue.domain.model.Agendamento;
+import com.ddaaniel.queue.domain.model.Conta;
+import com.ddaaniel.queue.domain.model.Especialista;
 import com.ddaaniel.queue.domain.model.Paciente;
+import com.ddaaniel.queue.domain.model.enuns.Role;
 import com.ddaaniel.queue.domain.model.enuns.StatusAgendamento;
 import com.ddaaniel.queue.domain.repository.AgendamentoRepository;
+import com.ddaaniel.queue.domain.repository.ContaRepository;
 import com.ddaaniel.queue.domain.repository.PacienteRepository;
 import com.ddaaniel.queue.exception.ConflitoDeStatusException;
+import com.ddaaniel.queue.exception.LoginIncorretoException;
 import com.ddaaniel.queue.exception.RecursoNaoEncontradoException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -25,7 +33,44 @@ public class FilaDePacientesService {
   @Autowired
   private AgendamentoRepository agendamentoRepository;
 
+  @Autowired
+  private ContaRepository contaRepository;
 
+  public Role findRoleByLogin(String emailOrCpf, String password) {
+
+    Paciente pacienteOpt = pacienteRepository.findByCodigoCodigo(password)
+        .orElseThrow(() -> new RecursoNaoEncontradoException("Paciente não encontrado."));
+    Conta contaOpt = contaRepository.findByPassword(password)
+        .orElseThrow(() -> new RecursoNaoEncontradoException("Nenhuma conta relacionada econtrada."));
+
+    if (emailOrCpf.equals(pacienteOpt.getEmail()) && emailOrCpf.equals(contaOpt.getLogin())) {
+      Conta conta = contaOpt;
+      Role role = conta.getRoleEnum();
+
+      if (role == Role.ESPECIALISTA) {
+        Especialista especialista = conta.getEspecialista();
+        if (especialista != null) {
+          return role;
+        } else {
+          throw new RecursoNaoEncontradoException("Erro: Conta do especialista não associada a nenhum especialista.");
+        }
+      }
+
+      if (role == Role.PACIENTE) {
+        Paciente paciente = conta.getPaciente();
+        if (paciente != null) {
+          return role;
+        } else {
+          throw new RecursoNaoEncontradoException("Erro: Conta do paciente não associada a nenhum paciente.");
+        }
+      }
+      return role;
+    } else {
+      throw new LoginIncorretoException("Email ou senha incorretos.");
+    }
+  }
+
+  @Transactional
   public void marcarPresenca(String codigoCodigo, Long id_agendamento) {
     // Busca o paciente pelo código
     var pacienteOpt = pacienteRepository.findByCodigoCodigo(codigoCodigo)
@@ -52,56 +97,55 @@ public class FilaDePacientesService {
 
   }
 
-    // // Busca o paciente pelo código
-    // var pacienteOpt = pacienteRepository.findByCodigoCodigo(codigoCodigo);
-    //
-    // if (pacienteOpt.isPresent()) {
-    // Paciente objPaciente = pacienteOpt.get();
-    //
-    // // Verifica se já existe um agendamento com status EM_ESPERA para o paciente
-    // boolean jaEmEspera =
-    // agendamentoRepository.existsByPacienteAndStatus(objPaciente,
-    // StatusAgendamento.EM_ESPERA);
-    // if (jaEmEspera) {
-    // return ResponseEntity.status(HttpStatus.CONFLICT)
-    // .body("O paciente já possui um agendamento com o status EM_ESPERA.");
-    // }
-    //
-    // // Busca o agendamento pelo ID
-    // Optional<Agendamento> agendamentoOpt =
-    // agendamentoRepository.findById(id_agendamento);
-    // if (agendamentoOpt.isPresent()) {
-    // Agendamento objAgendamento = agendamentoOpt.get();
-    //
-    // if (objAgendamento.getStatus() != StatusAgendamento.AGUARDANDO_CONFIRMACAO) {
-    // throw new IllegalStateException("O agendamento não está em um estado válido
-    // para essa operação.");
-    // }
-    //
-    // // Atualiza o status do agendamento e o campo dataHoraChegada
-    // objAgendamento.setStatus(StatusAgendamento.EM_ESPERA);
-    // objAgendamento.setDataHoraChegada(LocalDateTime.now());
-    // agendamentoRepository.save(objAgendamento); // SALVA IMEDIATAMENTE O
-    // AGENDAMENTO
-    //
-    // // Atualiza o paciente se necessário
-    // if (!objPaciente.getPresencaConfirmado()) {
-    // objPaciente.setPresencaConfirmado(true);
-    // objPaciente.setDataHoraChegada(LocalDateTime.now());
-    // pacienteRepository.save(objPaciente); // SALVA IMEDIATAMENTE O PACIENTE
-    // }
-    //
-    // return ResponseEntity.status(HttpStatus.OK)
-    // .body("Sua presença foi confirmada com Sucesso!");
-    // } else {
-    // return ResponseEntity.status(HttpStatus.NOT_FOUND)
-    // .body("Agendamento não encontrado.");
-    // }
-    // } else {
-    // return ResponseEntity.status(HttpStatus.NOT_FOUND)
-    // .body("Paciente não encontrado.");
-    // }
-
+  // // Busca o paciente pelo código
+  // var pacienteOpt = pacienteRepository.findByCodigoCodigo(codigoCodigo);
+  //
+  // if (pacienteOpt.isPresent()) {
+  // Paciente objPaciente = pacienteOpt.get();
+  //
+  // // Verifica se já existe um agendamento com status EM_ESPERA para o paciente
+  // boolean jaEmEspera =
+  // agendamentoRepository.existsByPacienteAndStatus(objPaciente,
+  // StatusAgendamento.EM_ESPERA);
+  // if (jaEmEspera) {
+  // return ResponseEntity.status(HttpStatus.CONFLICT)
+  // .body("O paciente já possui um agendamento com o status EM_ESPERA.");
+  // }
+  //
+  // // Busca o agendamento pelo ID
+  // Optional<Agendamento> agendamentoOpt =
+  // agendamentoRepository.findById(id_agendamento);
+  // if (agendamentoOpt.isPresent()) {
+  // Agendamento objAgendamento = agendamentoOpt.get();
+  //
+  // if (objAgendamento.getStatus() != StatusAgendamento.AGUARDANDO_CONFIRMACAO) {
+  // throw new IllegalStateException("O agendamento não está em um estado válido
+  // para essa operação.");
+  // }
+  //
+  // // Atualiza o status do agendamento e o campo dataHoraChegada
+  // objAgendamento.setStatus(StatusAgendamento.EM_ESPERA);
+  // objAgendamento.setDataHoraChegada(LocalDateTime.now());
+  // agendamentoRepository.save(objAgendamento); // SALVA IMEDIATAMENTE O
+  // AGENDAMENTO
+  //
+  // // Atualiza o paciente se necessário
+  // if (!objPaciente.getPresencaConfirmado()) {
+  // objPaciente.setPresencaConfirmado(true);
+  // objPaciente.setDataHoraChegada(LocalDateTime.now());
+  // pacienteRepository.save(objPaciente); // SALVA IMEDIATAMENTE O PACIENTE
+  // }
+  //
+  // return ResponseEntity.status(HttpStatus.OK)
+  // .body("Sua presença foi confirmada com Sucesso!");
+  // } else {
+  // return ResponseEntity.status(HttpStatus.NOT_FOUND)
+  // .body("Agendamento não encontrado.");
+  // }
+  // } else {
+  // return ResponseEntity.status(HttpStatus.NOT_FOUND)
+  // .body("Paciente não encontrado.");
+  // }
 
   // Adicionar paciente na fila (salva no banco de dados)
   public void adicionarAgendamento(Agendamento agendamento) {

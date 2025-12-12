@@ -4,6 +4,7 @@ import com.ddaaniel.queue.domain.model.Agendamento;
 import com.ddaaniel.queue.domain.model.Conta;
 import com.ddaaniel.queue.domain.model.Especialista;
 import com.ddaaniel.queue.domain.model.Paciente;
+import com.ddaaniel.queue.domain.model.enuns.Prioridade;
 import com.ddaaniel.queue.domain.model.enuns.Role;
 import com.ddaaniel.queue.domain.model.enuns.StatusAgendamento;
 import com.ddaaniel.queue.domain.repository.AgendamentoRepository;
@@ -14,10 +15,13 @@ import com.ddaaniel.queue.exception.LoginIncorretoException;
 import com.ddaaniel.queue.exception.RecursoNaoEncontradoException;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +39,69 @@ public class FilaDePacientesService {
 
   @Autowired
   private ContaRepository contaRepository;
+
+
+  private int prioridadeContador = 0; // Contador para alternância entre prioridades
+
+  public ResponseEntity<String> chamarPrimeiroPacientePorEspecialista(Long idEspecialista) {
+    // Busca todos os agendamentos em espera para o especialista com presença
+    // confirmada
+    List<Agendamento> agendamentos = agendamentoRepository
+        .findAllByEspecialista_IdAndStatusAndPaciente_PresencaConfirmado(
+            idEspecialista, StatusAgendamento.EM_ESPERA, true);
+
+    if (agendamentos.isEmpty()) {
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .body("Nenhum paciente em espera para o especialista com ID " + idEspecialista);
+    }
+
+    // Separamos pacientes com e sem prioridade
+    List<Agendamento> comPrioridade = agendamentos.stream()
+        .filter(a -> a.getPaciente().getPrioridade() == Prioridade.PESSOA_COM_ALGUMA_PRIORIDADE)
+        .sorted(Comparator.comparing(Agendamento::getDataHoraChegada))
+        .toList();
+
+    List<Agendamento> semPrioridade = agendamentos.stream()
+        .filter(a -> a.getPaciente().getPrioridade() == Prioridade.NENHUM)
+        .sorted(Comparator.comparing(Agendamento::getDataHoraChegada))
+        .toList();
+
+    // Seleciona o próximo paciente com base na alternância
+    Agendamento proximoAgendamento = null;
+
+    if (!comPrioridade.isEmpty() && (prioridadeContador < 2 || semPrioridade.isEmpty())) {
+      // Chama paciente com prioridade (máximo de 2 seguidos)
+      proximoAgendamento = comPrioridade.get(0);
+      prioridadeContador++;
+    } else if (!semPrioridade.isEmpty()) {
+      // Chama paciente sem prioridade
+      proximoAgendamento = semPrioridade.get(0);
+      prioridadeContador = 0; // Reseta o contador ao chamar um paciente sem prioridade
+    }
+
+    if (proximoAgendamento != null) {
+      // Atualiza o status do paciente para EM_ATENDIMENTO
+      proximoAgendamento.setStatus(StatusAgendamento.EM_ATENDIMENTO);
+      agendamentoRepository.save(proximoAgendamento);
+
+      // Retorna as informações do paciente escolhido
+      Paciente paciente = proximoAgendamento.getPaciente();
+      Map<String, Object> pacienteInfo = new HashMap<>();
+      pacienteInfo.put("id", paciente.getId_paciente());
+      pacienteInfo.put("nome", paciente.getNomeCompleto());
+      pacienteInfo.put("sexo", paciente.getSexo());
+      pacienteInfo.put("prioridade", paciente.getPrioridade().name());
+      pacienteInfo.put("horaChegada", paciente.getDataHoraChegada());
+      pacienteInfo.put("status", proximoAgendamento.getStatus());
+
+      return ResponseEntity.ok(pacienteInfo);
+    } else {
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .body("Nenhum paciente disponível para atendimento no momento.");
+    }
+  }
+
+
 
   public Role findRoleByLogin(String emailOrCpf, String password) {
 

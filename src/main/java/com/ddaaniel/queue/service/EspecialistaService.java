@@ -1,12 +1,18 @@
 package com.ddaaniel.queue.service;
 
-import com.ddaaniel.queue.domain.Exception.EspecialistaNotFoundException;
 import com.ddaaniel.queue.domain.model.Conta;
 import com.ddaaniel.queue.domain.model.Indisponibilidade;
 import com.ddaaniel.queue.domain.model.Especialista;
 import com.ddaaniel.queue.domain.model.enuns.Role;
+import com.ddaaniel.queue.domain.model.enuns.StatusAgendamento;
+import com.ddaaniel.queue.domain.repository.AgendamentoRepository;
 import com.ddaaniel.queue.domain.repository.ContaRepository;
 import com.ddaaniel.queue.domain.repository.EspecialistaRepository;
+import com.ddaaniel.queue.exception.EspecialistaNotFoundException;
+
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,6 +31,9 @@ public class EspecialistaService {
   @Autowired
   private EmailService emailService;
 
+  private AgendamentoRepository agendamentoRepository;
+
+
   public Especialista findByIdEspecialista(Long id_especialista) {
 
     Especialista especialista = especialistaRepository.findById(id_especialista)
@@ -33,6 +42,17 @@ public class EspecialistaService {
 
     return especialista;
   }
+
+
+
+  // Método auxiliar para contar os pacientes em espera por ID do especialista
+  public Integer contarPacientesPorEspecialistaId(Long especialistaId) {
+    int contagem = agendamentoRepository.countByEspecialista_IdAndStatus(
+        especialistaId, StatusAgendamento.EM_ESPERA);
+
+    return contagem;
+  }
+
 
   // No especialistaService
   public Page<Especialista> findAllEspecialistas(int page, int pageSize) {

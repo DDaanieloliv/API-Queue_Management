@@ -1,4 +1,5 @@
-package com.ddaaniel.queue.service;
+package com.ddaaniel.queue.service.mapper;
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

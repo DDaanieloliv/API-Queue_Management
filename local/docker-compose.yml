@@ -1,13 +1,11 @@
-version: '3.8'
-
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: mysql_db
+  postgres_db:
+    image: postgres:18.1-bookworm
+    container_name: pgsql
     environment:
-        MYSQL_ROOT_PASSWORD: secret
-        MYSQL_DATABASE: db
-        MYSQL_USER: daniel
-        MYSQL_PASSWORD: secret
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "3306:3306"
+      - "127.0.0.1:5432:5432"
+
